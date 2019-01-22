@@ -6,15 +6,29 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace UclController
+namespace clController
 {
     public class MainController : MonoBehaviour
     {
         public static ConType DefaultConType = ConType.Default;
         // 現在のコントローラ
         [SerializeField] ConType currentConType = DefaultConType;
-        public Controller controller = null;
-        
+        [System.NonSerialized] public Controller controller = null;
+
+        public ButtonObj m_button;
+
+        [System.Serializable]
+        public struct InputInspector
+        {
+            public int PressButtonInt;
+            public string PressButton;
+            public Vector2 TouchPosition, TouchVector;
+            public Vector2 MoveStick, RotStick;
+            public Vector2 LeftStick, RightStick;
+        }
+        [SerializeField] public InputInspector m_inputInspector = new InputInspector();
+        [SerializeField] public Controller.PropertyClass m_controllerProperty;
+
         // コントローラの切り替えは再生成にする、複数体作るときのメモリ軽減
         public ConType CurrentConType
         {
@@ -33,7 +47,7 @@ namespace UclController
                 {
                     currentConType = value;
                     if (controller == null)
-                        controller = new Controller(currentConType, joystickID);
+                        controller = Controller.Create(currentConType, joystickID);
                     else
                         controller.ConType = currentConType;
                 }
@@ -53,37 +67,6 @@ namespace UclController
                 }
             }
         }
-
-        public ButtonObj button;
-        public int btn0;
-        public string currentButton = "";
-
-        [SerializeField] Vector2 ls, rs, mover, rotMover;
-        [SerializeField] Vector2 touchCursor, touchDown, touchVector, touchUp;
-        public Vector2 Ls
-        {
-            get { return ls; }
-            private set { ls = value; }
-        }
-        public Vector2 Rs
-        {
-            get { return rs; }
-            private set { rs = value; }
-        }
-        public Vector2 Mover
-        {
-            get { return mover; }
-            private set { mover = value; }
-        }
-        public Vector2 RotMover
-        {
-            get { return rotMover; }
-            private set { rotMover = value; }
-        }
-        public Vector2 TouchCursor { get { return touchCursor; } }
-        public Vector2 TouchDown { get { return touchDown; } }
-        public Vector2 TouchVector { get { return touchVector; } }
-        public Vector2 TouchUp { get { return touchUp; } }
 
         private int controllerCount;
         public string[] ControllerNames;
@@ -113,10 +96,12 @@ namespace UclController
         }
         void Start()
         {
-            controller = new Controller(currentConType);
+            controller = Controller.Create(currentConType);
+            m_controllerProperty = controller.Property;
             activeJoystickCount = Controller.JoystickCount();
             Update();
         }
+
         private void OnValidate()
         {
             CurrentConType = currentConType;
@@ -127,21 +112,19 @@ namespace UclController
             ControllerNames = Input.GetJoystickNames();
             controller.Update();
 
-            touchCursor = controller.TouchesPosition[0];
-            touchDown = controller.TouchesDownPosition[0];
-            touchVector = controller.TouchesVector[0];
-            touchUp = controller.TouchesUpPosition[0];
+            m_inputInspector.TouchPosition = controller.TouchesPosition[0];
+            m_inputInspector.TouchVector = controller.TouchesVector[0];
+            m_inputInspector.LeftStick = controller.Stick[PosType.Left];
+            m_inputInspector.RightStick = controller.Stick[PosType.Right];
+            m_inputInspector.MoveStick = controller.Stick[PosType.Move];
+            m_inputInspector.RotStick = controller.Stick[PosType.Rot];
 
-            button = controller.Button;
-            btn0 = (int)button[ButtonMode.Press];
-            currentButton = ButtonObj.ResultButton((ButtonType)btn0);
-            Ls = controller.Stick[PosType.Left];
-            Rs = controller.Stick[PosType.Right];
-            Mover = controller.Stick[PosType.Move];
-            RotMover = controller.Stick[PosType.Rot];
+            m_button = controller.Button;
+            m_inputInspector.PressButtonInt = (int)m_button[ButtonMode.Press];
+            m_inputInspector.PressButton = ButtonObj.ResultButton((ButtonType)m_inputInspector.PressButtonInt);
 
-            if (button.JudgeButton((ButtonType)13056, ButtonMode.Delay, true)) { Quit(); }
-            if (button.JudgeButton(ButtonType.ESC, ButtonMode.DelayDown)) { Quit(); }
+            if (m_button.JudgeButton((ButtonType)13056, ButtonMode.Delay, true)) { Quit(); }
+            if (m_button.JudgeButton(ButtonType.ESC, ButtonMode.DelayDown)) { Quit(); }
         }
     }
 }

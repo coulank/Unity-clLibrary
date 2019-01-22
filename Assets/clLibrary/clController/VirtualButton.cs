@@ -5,7 +5,7 @@ using UnityEngine.UI;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 
-namespace UclController
+namespace clController
 {
     public class VirtualButton : Master
     {
@@ -78,6 +78,8 @@ namespace UclController
             base.Start();
             SetUp(vbn);
         }
+        [SerializeField]
+        private UnityEvent m_onDown = new UnityEvent();
         public void OnDown() { }
         private void _onDown()
         {
@@ -91,6 +93,8 @@ namespace UclController
             }
             OnDown();
         }
+        [SerializeField]
+        private UnityEvent m_onUp = new UnityEvent();
         public void OnUp() { }
         private void _onUp()
         {
@@ -106,6 +110,8 @@ namespace UclController
             }
             OnUp();
         }
+        [SerializeField]
+        private UnityEvent m_onEnter = new UnityEvent();
         public void OnEnter() { }
         private void _onEnter()
         {
@@ -117,6 +123,8 @@ namespace UclController
             }
             OnEnter();
         }
+        [SerializeField]
+        private UnityEvent m_onExit = new UnityEvent();
         public void OnExit() { }
         private void _onExit()
         {
@@ -128,13 +136,15 @@ namespace UclController
             }
             OnExit();
         }
+        [SerializeField]
+        private UnityEvent m_onClick = new UnityEvent();
         public void OnClick() { }
         private void _onClick()
         {
             switch (SwitchMode)
             {
                 case ButtonSwitch.Click:
-                    Con.SetVirtualButton(PressButton);
+                    m_controller.SetVirtualButton(PressButton);
                     PressFlag = false;
                     break;
             }
@@ -166,13 +176,13 @@ namespace UclController
             if (PressFlag)
             {
                 if (clickFlag)
-                    Con.SetVirtualButton(ButtonType.NONE);
+                    m_controller.SetVirtualButton(ButtonType.NONE);
                 else
-                    Con.SetVirtualButton(PressButton, swipeLock);
+                    m_controller.SetVirtualButton(PressButton, swipeLock);
             }
             else if (swipeLock)
             {
-                Con.SetVirtualButton(ButtonType.NONE);
+                m_controller.SetVirtualButton(ButtonType.NONE);
             }
         }
     }

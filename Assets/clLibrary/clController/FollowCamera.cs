@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace UclController
+namespace clController
 {
     /// <summary>
     /// 後になってCinemachineの存在を知ったため、今後はFollowControllerを使います
@@ -245,7 +245,7 @@ namespace UclController
         {
             if (PermissionController)
             {
-                Vector3 stick_move = Stick[PosType.Rot];
+                Vector3 stick_move = m_stick[PosType.Rot];
                 float comp = 4f;
                 if (stick_move != Vector3.zero)
                 {
@@ -256,8 +256,8 @@ namespace UclController
                     };
                     EulerAngle += angle_arrow;
                 }
-                Distance -= Con.Scroll * DistanceVelocity;
-                if (Button.JudgeButton(ButtonType.Y)) { SeeForward(); }
+                Distance -= m_controller.Scroll * DistanceVelocity;
+                if (m_button.JudgeButton(ButtonType.Y)) { SeeForward(); }
             }
         }
         new void Update()

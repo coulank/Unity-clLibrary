@@ -2,33 +2,33 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace UclController
+namespace clController
 {
     [DefaultExecutionOrder(0xF)]
     public class Master : MonoBehaviour
     {
         [System.NonSerialized]
-        public GameObject GameController = null;
-        public GameObject GameFollow = null;
+        public GameObject m_gameController = null;
+        public GameObject m_gameFollow = null;
         // 内部以外は読み取り専用にする
-        public MainController MainCon { get; private set; }
-        public FollowController MainFollow { get; private set; }
-        public Controller Con { get; private set; }
-        public ButtonObj Button { get; private set; }
-        public StickObj Stick { get; private set; }
+        public MainController m_mainController { get; private set; }
+        public FollowController m_mainFollow { get; private set; }
+        public Controller m_controller { get; private set; }
+        public ButtonObj m_button { get; private set; }
+        public StickObj m_stick { get; private set; }
 
         public void Start()
         {
-            GameController = MainController.GetGameMain(GameController);
-            MainCon = GameController.GetComponent<MainController>();
-            MainFollow = GameController.GetComponent<FollowController>();
+            m_gameController = MainController.GetGameMain(m_gameController);
+            m_mainController = m_gameController.GetComponent<MainController>();
+            m_mainFollow = m_gameController.GetComponent<FollowController>();
             Update();
         }
         public void Update()
         {
-            Con = MainCon.controller;
-            Button = Con.Button;
-            Stick = Con.Stick;
+            m_controller = m_mainController.controller;
+            m_button = m_controller.Button;
+            m_stick = m_controller.Stick;
         }
     }
 }

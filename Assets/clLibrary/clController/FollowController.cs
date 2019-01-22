@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Cinemachine;
 
-namespace UclController
+namespace clController
 {
     [DefaultExecutionOrder(0xFFFF)]
     public class FollowController : Master
@@ -121,7 +121,7 @@ namespace UclController
             if (PermissionController)
             {
                 // クォータニオンで角度回転
-                Vector3 stick_move = Stick[PosType.Rot];
+                Vector3 stick_move = m_stick[PosType.Rot];
                 transform.rotation =
                     Quaternion.Lerp(transform.rotation,
                         Quaternion.AngleAxis(stick_move.x, new Vector3(0, 1, 0))
@@ -131,9 +131,9 @@ namespace UclController
                 transform.rotation = VecComp.RotLimit(transform.rotation, 
                     Vector3.right, MinBaseAngle, MaxBaseAngle);
                 // Yボタンで視点リセット
-                RotForward(Button.JudgeButton(ViewForwardButton, resetRotButtonMode));
+                RotForward(m_button.JudgeButton(ViewForwardButton, resetRotButtonMode));
                 // カムバックボタン
-                if (Button.JudgeButton(RespawnButton, ButtonMode.Down)) FollowObject.transform.position = RespawnPosition;
+                if (m_button.JudgeButton(RespawnButton, ButtonMode.Down)) FollowObject.transform.position = RespawnPosition;
             }
         }
         private void PositionUpdate()
@@ -169,16 +169,16 @@ namespace UclController
             if (CmCamera != null)
             {
                 // コントローラのアクティブ化、基本はFollowを参照、LookAtはFollowがNullのときだけ
-                if (SwitchControllFromCameara && (Con != null))
+                if (SwitchControllFromCameara && (m_controller != null))
                 {
                     if (CmCamera.m_Follow != null)
-                        Con.Active = (CmCamera.m_Follow.gameObject == gameObject);
+                        m_controller.Active = (CmCamera.m_Follow.gameObject == gameObject);
                     else
                     {
                         if (CmCamera.m_Follow != null)
-                            Con.Active = (CmCamera.m_LookAt.gameObject == gameObject);
+                            m_controller.Active = (CmCamera.m_LookAt.gameObject == gameObject);
                         else
-                            Con.Active = false;
+                            m_controller.Active = false;
                     }
                 }
             }

@@ -9,8 +9,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEditor;
 
-namespace UclController
+namespace clController
 {
     public enum ButtonMode
     {
@@ -161,7 +162,7 @@ namespace UclController
         /// Falseならどれか一つだけでも押されていればTrueを返す</param>
         public bool JudgeButton(ButtonType judge_button, ButtonMode btype = ButtonMode.Down, bool AndMode = false)
         {
-            return ButtonObj.JudgeButton(judge_button, this[btype], AndMode);
+            return JudgeButton(judge_button, this[btype], AndMode);
         }
         /// <summary>押しっぱなしのときに発生</summary>
         public ButtonType Press { get { return this[ButtonMode.Press]; } }
@@ -389,6 +390,7 @@ namespace UclController
         }
     }
 
+    [Serializable]
     /// <summary>リピートクラス、単位は秒、小数点以下で指定すること</summary>
     public class KeyRepeatClass
     {
@@ -714,8 +716,10 @@ namespace UclController
         }
     }
 
-    public class Controller : List<ConObj>
+    [CustomEditor(typeof(Controller))]
+    public class Controller : Editor
     {
+        public List<ConObj> ConList = new List<ConObj>();
         static protected List<ButtonType> GetListButtonType()
         {
             var list = new List<ButtonType>();
@@ -816,6 +820,7 @@ namespace UclController
         protected const int USE_TOUCHESCOUNT = 3;
 
         /// <summary>クリックした座標</summary>
+        [SerializeField]
         public Vector2[] TouchesPosition { get; private set; } = new Vector2[USE_TOUCHESCOUNT];
         /// <summary>前回クリックした座標</summary>
         public Vector2[] TouchesBeforePosition { get; private set; } = new Vector2[USE_TOUCHESCOUNT];
@@ -855,6 +860,7 @@ namespace UclController
         /// <summary>
         /// プロパティ、まとめて設定を管理できる
         /// </summary>
+        [Serializable]
         public class PropertyClass
         {
             /// <summary>名前、付けなくても良い</summary>
@@ -931,16 +937,18 @@ namespace UclController
         public void Add(KeyType _keytype = KeyType.Key, ButtonType _button = 0, int _num = 1, string _keyname = "", bool _reverse = false, float _dead = 0.1f,
             PosType _pos = PosType.Left, PointType _pnt = PointType.X)
         {
-            Add(new ConObj(this, _keytype, _button, _num, _keyname, _reverse, _dead, _pos, _pnt));
+            ConList.Add(new ConObj(this, _keytype, _button, _num, _keyname, _reverse, _dead, _pos, _pnt));
         }
 
         /// <summary>通常のコンストラクタ、コントローラーオブジェクトの初期化</summary>
-        public Controller(ConType contype = ConType.Default, int _joystickID = 0)
+        public static Controller Create(ConType contype = ConType.Default, int _joystickID = 0)
         {
-            JoystickID = _joystickID;
-            BuildOfType(contype);
-            btnlist = new Dictionary<ButtonType, bool>();
-            foreach (ButtonType con in BTNNUMLIST) btnlist.Add(con, false);
+            var _controller = CreateInstance <Controller>();
+            _controller.JoystickID = _joystickID;
+            _controller.BuildOfType(contype);
+            _controller.btnlist = new Dictionary<ButtonType, bool>();
+            foreach (ButtonType con in BTNNUMLIST) _controller.btnlist.Add(con, false);
+            return _controller;
         }
 
         /// <summary>有効なスティックの数を出力する</summary>
@@ -973,7 +981,7 @@ namespace UclController
         /// <summary>テンプレ設置、後で追加することもできる</summary>
         public void SetTemp(ConTempSet templates)
         {
-            AddRange(ConTempSet.OutUseList(this, templates));
+            ConList.AddRange(ConTempSet.OutUseList(this, templates));
         }
 
         public void KeySwapLocal(ButtonType b1, ButtonType b2, bool oneway = false)
@@ -1144,7 +1152,7 @@ namespace UclController
             }
 
             // ボタン周り取得する
-            foreach (ConObj con in this)
+            foreach (ConObj con in ConList)
                 VirtualButton |= con.UpdateButton(Property.ConKeyboard);
             if ((VirtualButton & ButtonType.ANY_ARROW) != 0)
                 if (Property.ArrowToMove)
@@ -1272,7 +1280,7 @@ namespace UclController
             conType = contype;
             Sys_ConType = conType;
 
-            Clear();
+            ConList.Clear();
             if (contype == ConType.Other) return;   // Otherは各自でAddすることを想定
             SetTemp(ConTempSet.UserFirstTemplate);
             SetTemp(ConTempSet.CommonTemplate);
@@ -1294,6 +1302,23 @@ namespace UclController
                     break;
             }
             SetTemp(ConTempSet.UserLastTemplate);
+        }
+        void OnGUI()
+        {
+            ScriptableObject target = this;
+            SerializedObject so = new SerializedObject(target);
+            // 変更の記憶.
+            so.ApplyModifiedProperties();
+
+            EditorGUILayout.LabelField("hoge", this.Button.ToString());
+
+
+            // 実行はできるが、ダメ.
+            // foreachだとiterateしたもの自身に代入になるのでそもそもダメ.
+            // for(var i=0; i < this.hoges.Length; i++)
+            // {
+            //  this.hoges[i] = EditorGUILayout.ObjectField("ラベル", this.drops[i], typeof(Hoge), true) as Hoge;
+            // }
         }
     }
 }

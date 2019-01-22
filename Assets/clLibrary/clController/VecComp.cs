@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace UclController
+namespace clController
 {
     /// <summary>
     /// ベクトル補正クラス
