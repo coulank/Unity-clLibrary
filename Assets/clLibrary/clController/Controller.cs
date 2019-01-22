@@ -213,7 +213,10 @@ namespace clController
     {
         public void SetMost(PosType pos, Vector2 addvc2, float magnitude = 1f)
         {
-            this[pos] = VecComp.AbsMax(this[pos], addvc2) * magnitude;
+            if (ContainsKey(pos))
+            {
+                this[pos] = VecComp.AbsMax(this[pos], addvc2) * magnitude;
+            }
         }
         public void PosAdd(PosType pos, Vector2 vc2 = new Vector2())
         {
@@ -358,7 +361,8 @@ namespace clController
                             vc3.z = axisval;
                             break;
                     }
-                    parent.Stick[LocalPosType] = vc3;
+
+                    parent.Stick.SetMost(posType, vc3);;
                     if ((posType & PosType.Move) == PosType.Move) parent.Stick.SetMost(PosType.Move, vc3);
                     if ((posType & PosType.Rot) == PosType.Rot) parent.Stick.SetMost(PosType.Rot, vc3);
                     break;
@@ -716,10 +720,43 @@ namespace clController
         }
     }
 
-    [CustomEditor(typeof(Controller))]
-    public class Controller : Editor
+    public class Controller : MonoBehaviour
     {
-        public List<ConObj> ConList = new List<ConObj>();
+        public List<ConObj> m_controller = new List<ConObj>();
+        public static ConType DefaultConType = ConType.Default;
+        // 現在のコントローラ
+        [SerializeField] ConType currentConType = DefaultConType;
+        // コントローラの切り替えは再生成にする、複数体作るときのメモリ軽減
+        public ConType CurrentConType
+        {
+            get { return currentConType; }
+            set
+            {
+                bool doChange;
+                int joystickID = 0;
+                joystickID = JoystickID;
+                doChange = ConType != currentConType;
+                if (doChange) {
+                    currentConType = value;
+                    ConType = currentConType;
+                }
+            }
+        }
+        // コントローラの数が変わったときに実行
+        private int activeJoystickCount = 0;
+        public int ActiveJoystickCount
+        {
+            get { return activeJoystickCount; }
+            private set
+            {
+                if (activeJoystickCount != value)
+                {
+                    if (CurrentConType == ConType.Default) BuildOfType(CurrentConType);
+                    activeJoystickCount = value;
+                }
+            }
+        }
+
         static protected List<ButtonType> GetListButtonType()
         {
             var list = new List<ButtonType>();
@@ -777,11 +814,11 @@ namespace clController
     };
         public ConType Sys_ConType { get; private set; }
         /// <summary>コントローラーの種類</summary>
-        private ConType conType;
+        private ConType m_conType;
         public ConType ConType
         {
             set { BuildOfType(value); }
-            get { return conType; }
+            get { return m_conType; }
         }
         /// <summary>現在のコントローラ名やコントローラID</summary>
         public string JoystickName = "All";
@@ -806,7 +843,7 @@ namespace clController
             get { return joystickID; }
         }
         /// <summary>コントローラーが現在アクティブなのかどうか、これがFalseならUpdateは初期化だけになる</summary>
-        public bool Active = true;
+        [NonSerialized] public bool Active = true;
         /// <summary>スティックのYの正負を入れ替えるかどうか、デフォで入れ替える</summary>
         static public bool Yreverse = true;
 
@@ -853,10 +890,22 @@ namespace clController
         /// <summary>これが解除されるのはタッチから離れたときのみ</summary>
         public bool ScreenTapLock { get; private set; } = false;
 
+        [Serializable]
+        public struct InputInspector
+        {
+            public int PressButtonInt;
+            public string PressButton;
+            public Vector2 TouchPosition, TouchVector;
+            public Vector2 MoveStick, RotStick;
+            public Vector2 LeftStick, RightStick, neko;
+        }
+        [SerializeField] public InputInspector m_inputInspector = new InputInspector();
+
         /// <summary>
         /// ここで指定するプロパティは動的に複数管理できることを想定
         /// </summary>
-        public PropertyClass Property = new PropertyClass();
+        public PropertyClass Property { get { return m_property; } set { m_property = value; } }
+        [SerializeField] private PropertyClass m_property = new PropertyClass();
         /// <summary>
         /// プロパティ、まとめて設定を管理できる
         /// </summary>
@@ -866,7 +915,7 @@ namespace clController
             /// <summary>名前、付けなくても良い</summary>
             public string Name;
             /// <summary>ZLZRとLRを入れ替えるかどうか</summary>
-            public bool Zreverse = false;
+            public bool ButtonZLR_Reverse = false;
             /// <summary>キーボードをコントローラーにするかどうか</summary>
             public bool ConKeyboard = true;
             /// <summary>joystickIDが0よりも大きいときにキーボードコントローラ有効にするか</summary>
@@ -887,7 +936,14 @@ namespace clController
             /// <summary>指に対しての動かす対象</summary>
             public PosType[] TouchVectorMode = new PosType[USE_TOUCHESCOUNT] 
             { PosType.Move, PosType.Rot, PosType.Center};
+            /// <summary>タップしたときのボタンアクション</summary>
+            public ButtonType[] TouchesButton = new ButtonType[USE_TOUCHESCOUNT]
+                { ButtonType.A, ButtonType.NONE, ButtonType.NONE };
 
+            /// <summary>スクリーン全体をタップしたときのボタン発生を有効にするか</summary>
+            public bool TouchButtonFlag = true;
+            /// <summary>タップし続けてるときにボタンを発生させ続けるか</summary>
+            public bool TouchButtonPushFlag = true;
             /// <summary>矢印キーを移動ベクトルにするか</summary>
             public bool ArrowToMove = true;
             /// <summary>矢印キーの移動ベクトルにおける倍率</summary>
@@ -903,14 +959,6 @@ namespace clController
             public float SwipeDead = 20f;
             /// <summary>スワイプの最大半径、この範囲内を0～1で表現</summary>
             public float SwipeMaxRadius = 40f;
-
-            /// <summary>スクリーン全体をタップしたときのボタン発生を有効にするか</summary>
-            public bool TouchButtonFlag = true;
-            /// <summary>タップし続けてるときにボタンを発生させ続けるか</summary>
-            public bool TouchButtonPushFlag = true;
-            /// <summary>タップしたときのボタンアクション</summary>
-            public ButtonType[] TouchesButton = new ButtonType[USE_TOUCHESCOUNT] 
-                { ButtonType.A, ButtonType.NONE, ButtonType.NONE };
         }
 
         /// <summary>ボタンをBoolディクショナリ配列形式にしたもの、これにまず格納する</summary>
@@ -927,28 +975,37 @@ namespace clController
         /// .Down 押した瞬間だけ発生
         /// .Up 離した瞬間だけ発生
         /// </summary>
-        public ButtonObj Button { get; private set; } = new ButtonObj();
+        public ButtonObj Button { get { return m_button; } set { m_button = value; } }
+        protected ButtonObj m_button = new ButtonObj();
         public ButtonType VirtualButton = 0;
         /// <summary>スティックオブジェクト</summary>
-        public StickObj Stick { get; private set; } = new StickObj();
+        public StickObj Stick { get { return m_stick; } set { m_stick = value; } }
+        public StickObj m_stick = new StickObj();
         /// <summary>補正クラス</summary>
         static public CompPoint CompObj { get; private set; } = new CompPoint();
+
+        private int controllerCount;
+        public string[] ControllerNames;
 
         public void Add(KeyType _keytype = KeyType.Key, ButtonType _button = 0, int _num = 1, string _keyname = "", bool _reverse = false, float _dead = 0.1f,
             PosType _pos = PosType.Left, PointType _pnt = PointType.X)
         {
-            ConList.Add(new ConObj(this, _keytype, _button, _num, _keyname, _reverse, _dead, _pos, _pnt));
+            m_controller.Add(new ConObj(this, _keytype, _button, _num, _keyname, _reverse, _dead, _pos, _pnt));
         }
-
         /// <summary>通常のコンストラクタ、コントローラーオブジェクトの初期化</summary>
-        public static Controller Create(ConType contype = ConType.Default, int _joystickID = 0)
+        public static Controller Create(Controller _controller = null, ConType contype = ConType.Default, 
+            int _joystickID = 0)
         {
-            var _controller = CreateInstance <Controller>();
+            if (_controller == null) _controller = new Controller();
             _controller.JoystickID = _joystickID;
             _controller.BuildOfType(contype);
             _controller.btnlist = new Dictionary<ButtonType, bool>();
             foreach (ButtonType con in BTNNUMLIST) _controller.btnlist.Add(con, false);
             return _controller;
+        }
+        public static Controller Create(ConType contype = ConType.Default, int _joystickID = 0)
+        {
+            return Create(null, contype, _joystickID);
         }
 
         /// <summary>有効なスティックの数を出力する</summary>
@@ -981,7 +1038,7 @@ namespace clController
         /// <summary>テンプレ設置、後で追加することもできる</summary>
         public void SetTemp(ConTempSet templates)
         {
-            ConList.AddRange(ConTempSet.OutUseList(this, templates));
+            m_controller.AddRange(ConTempSet.OutUseList(this, templates));
         }
 
         public void KeySwapLocal(ButtonType b1, ButtonType b2, bool oneway = false)
@@ -1006,7 +1063,7 @@ namespace clController
             ScreenTapLock |= touchlock;
         }
 
-        public void Update()
+        public void ControllerUpdate()
         {
             // 初期化
             foreach (ButtonType btnkey in BTNNUMLIST) btnlist[btnkey] = false;
@@ -1092,7 +1149,7 @@ namespace clController
             {
                 for (int i = 0; i < USE_TOUCHESCOUNT; i++)
                 {
-                    controllVector = Property.TouchVectorMode[i];
+                    controllVector = m_property.TouchVectorMode[i];
                     if (TouchesDown[i])
                     {
                         TouchesSwipeMode[i] = false;
@@ -1102,8 +1159,8 @@ namespace clController
                     if (TouchesPress[i])
                     {
                         TouchesTime[i] += Time.deltaTime;
-                        if (Property.TouchButtonFlag && Property.TouchButtonPushFlag)
-                            if (TouchesLook[i]) VirtualButton |= Property.TouchesButton[i];
+                        if (m_property.TouchButtonFlag && m_property.TouchButtonPushFlag)
+                            if (TouchesLook[i]) VirtualButton |= m_property.TouchesButton[i];
                         if (!ScreenTapLock) TouchesLook[i] = true;
                         TouchesVector[i] = TouchesPosition[i] - TouchesDownPosition[i];
                         TouchesDeltaVector[i] = TouchesPosition[i] - TouchesBeforePosition[i];
@@ -1113,7 +1170,7 @@ namespace clController
                         {
                             mag = TouchesVector[i].magnitude;
                             if (!TouchesSwipeMode[i])
-                                if (mag > Property.SwipeDead)
+                                if (mag > m_property.SwipeDead)
                                     TouchesSwipeMode[i] = true;
                             Vector2 vector2 = TouchesVector[i];
                             float delta_mag = 1f;
@@ -1121,21 +1178,25 @@ namespace clController
                             switch (controllVector)
                             {
                                 case PosType.Rot:
-                                    vector2 = TouchesDeltaVector[i] * Property.TouchRotReverseComp;
-                                    delta_mag = Property.TouchDeltaMagnitude;
+                                    vector2 = TouchesDeltaVector[i] * m_property.TouchRotReverseComp;
+                                    delta_mag = m_property.TouchDeltaMagnitude;
                                     break;
                             }
-                            if (TouchesSwipeMode[i])
-                                Stick.SetMost(controllVector, VecComp.ConvMag(vector2, Property.SwipeMaxRadius), delta_mag);
+                            if (controllVector != PosType.None)
+                                if (TouchesSwipeMode[i])
+                                {
+                                    Stick.SetMost(controllVector, 
+                                        VecComp.ConvMag(vector2, m_property.SwipeMaxRadius), delta_mag);
+                                }
                         }
                     }
                     if (TouchesUp[i])
                     {
                         if (!ScreenTapLock)
                         {
-                            if (Property.TouchButtonFlag) {
-                                if (TouchesLook[i] && !TouchesSwipeMode[i] && !Property.TouchButtonPushFlag)
-                                    VirtualButton |= Property.TouchesButton[i];
+                            if (m_property.TouchButtonFlag) {
+                                if (TouchesLook[i] && !TouchesSwipeMode[i] && !m_property.TouchButtonPushFlag)
+                                    VirtualButton |= m_property.TouchesButton[i];
                             }
                         }
                         TouchesUpPosition[i] = TouchesPosition[i];
@@ -1152,13 +1213,13 @@ namespace clController
             }
 
             // ボタン周り取得する
-            foreach (ConObj con in ConList)
-                VirtualButton |= con.UpdateButton(Property.ConKeyboard);
+            foreach (ConObj con in m_controller)
+                VirtualButton |= con.UpdateButton(m_property.ConKeyboard);
             if ((VirtualButton & ButtonType.ANY_ARROW) != 0)
-                if (Property.ArrowToMove)
+                if (m_property.ArrowToMove)
                 {
                     Vector2 vc2 = Vector2.zero;
-                    float srg = Property.ArrowKeyStrange;
+                    float srg = m_property.ArrowKeyStrange;
                     // キー入力をMoveに落とし込む
                     if (ButtonObj.JudgeButton(ButtonType.UP | ButtonType.DOWN, VirtualButton))
                         vc2.y = ((ButtonObj.JudgeButton(ButtonType.UP, VirtualButton)) ? (Controller.Yreverse ? srg : -srg) : 0)
@@ -1177,12 +1238,12 @@ namespace clController
                             + ((ButtonObj.JudgeButton(ButtonType.R_RIGHT, VirtualButton)) ? srg : 0);
                     Stick[PosType.Rot] = VecComp.SetCurcler(Stick[PosType.Rot], vc2);
                 }
-            if (Property.MoveToArrow)
+            if (m_property.MoveToArrow)
             {
                 // Moveから方向キーを取得
                 Vector2 smov = Stick[PosType.Move];
                 float rot = VecComp.ToAbsDeg(smov);
-                if (smov.magnitude > Property.MoveArrowDead)
+                if (smov.magnitude > m_property.MoveArrowDead)
                 {
                     if (160f > rot && rot > 20f) VirtualButton |= Yreverse ? ButtonType.UP : ButtonType.DOWN;
                     if (250f > rot && rot > 110f) VirtualButton |= ButtonType.LEFT;
@@ -1192,7 +1253,7 @@ namespace clController
                 // Rotから方向キーを取得
                 smov = Stick[PosType.Rot];
                 rot = VecComp.ToAbsDeg(smov);
-                if (smov.magnitude > Property.MoveArrowDead)
+                if (smov.magnitude > m_property.MoveArrowDead)
                 {
                     if (160f > rot && rot > 20f) VirtualButton |= Yreverse ? ButtonType.R_UP : ButtonType.R_DOWN;
                     if (250f > rot && rot > 110f) VirtualButton |= ButtonType.R_LEFT;
@@ -1250,12 +1311,12 @@ namespace clController
                 }
             }
 
-            if (Property.Zreverse)
+            if (m_property.ButtonZLR_Reverse)
             {
                 KeySwapLocal(ButtonType.L, ButtonType.ZL);
                 KeySwapLocal(ButtonType.R, ButtonType.ZR);
             }
-            Stick[PosType.Rot] *= Property.RotReverseComp;
+            Stick[PosType.Rot] *= m_property.RotReverseComp;
             VirtualButton = 0;
         }
 
@@ -1274,13 +1335,13 @@ namespace clController
                 }
                 if (contype == ConType.Default) contype = ConType.Xinput;
                 BuildOfType(contype);
-                conType = ConType.Default;
+                m_conType = ConType.Default;
                 return;
             }
-            conType = contype;
-            Sys_ConType = conType;
+            m_conType = contype;
+            Sys_ConType = m_conType;
 
-            ConList.Clear();
+            m_controller.Clear();
             if (contype == ConType.Other) return;   // Otherは各自でAddすることを想定
             SetTemp(ConTempSet.UserFirstTemplate);
             SetTemp(ConTempSet.CommonTemplate);
@@ -1303,22 +1364,64 @@ namespace clController
             }
             SetTemp(ConTempSet.UserLastTemplate);
         }
-        void OnGUI()
+        // Unityの終了命令
+        static public void Quit()
         {
-            ScriptableObject target = this;
-            SerializedObject so = new SerializedObject(target);
-            // 変更の記憶.
-            so.ApplyModifiedProperties();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+        }
+        static public GameObject GetGameMain(GameObject gameMain = null)
+        {
+            // 操作親を設定する、デフォルトでgameMainを取得、なければ自分で作る
+            if (gameMain == null)
+            {
+                gameMain = GameObject.FindGameObjectWithTag("GameController");
+                if (gameMain == null)
+                {
+                    gameMain = new GameObject("MainController");
+                }
+                var _controller = gameMain.GetComponent<Controller>();
+                if (_controller == null)
+                {
+                    gameMain.AddComponent<Controller>();
 
-            EditorGUILayout.LabelField("hoge", this.Button.ToString());
+                }
+            }
+            return gameMain;
+        }
+        void Start()
+        {
+            Create(this, currentConType);
+            activeJoystickCount = JoystickCount();
+            Update();
+        }
 
+        private void OnValidate()
+        {
+            CurrentConType = currentConType;
+        }
+        void Update()
+        {
+            ActiveJoystickCount = JoystickCount();
+            ControllerNames = Input.GetJoystickNames();
+            ControllerUpdate();
 
-            // 実行はできるが、ダメ.
-            // foreachだとiterateしたもの自身に代入になるのでそもそもダメ.
-            // for(var i=0; i < this.hoges.Length; i++)
-            // {
-            //  this.hoges[i] = EditorGUILayout.ObjectField("ラベル", this.drops[i], typeof(Hoge), true) as Hoge;
-            // }
+            m_inputInspector.TouchPosition = TouchesPosition[0];
+            m_inputInspector.TouchVector = TouchesVector[0];
+            m_inputInspector.LeftStick = Stick[PosType.Left];
+            m_inputInspector.RightStick = Stick[PosType.Right];
+            m_inputInspector.MoveStick = Stick[PosType.Move];
+            m_inputInspector.RotStick = Stick[PosType.Rot];
+
+            m_button = Button;
+            m_inputInspector.PressButtonInt = (int)m_button[ButtonMode.Press];
+            m_inputInspector.PressButton = ButtonObj.ResultButton((ButtonType)m_inputInspector.PressButtonInt);
+
+            if (m_button.JudgeButton((ButtonType)13056, ButtonMode.Delay, true)) { Quit(); }
+            if (m_button.JudgeButton(ButtonType.ESC, ButtonMode.DelayDown)) { Quit(); }
         }
     }
 }
