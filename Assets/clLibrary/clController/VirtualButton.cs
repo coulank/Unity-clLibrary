@@ -15,8 +15,8 @@ namespace clController
             Toggle = 2,
             Click = 4
         }
-        [SerializeField]
-        bool pressFlag = false, clickFlag = false, swipeLock = false;
+        [System.NonSerialized]
+        bool pressFlag = false, clickFlag = false;
         public bool PressFlag
         {
             get { return pressFlag; }
@@ -29,10 +29,21 @@ namespace clController
         [SerializeField]
         protected Sprite PressImage = null;
         [SerializeField]
-        protected Color PressColor = Color.white;
+        public Color PressColor = Color.white;
         private Image ImageObj = null;
         private Sprite beforeImage = null;
         private Color beforeColor = Color.white;
+        [SerializeField]
+        public OnEventClass m_onEvent = new OnEventClass();
+        [System.Serializable]
+        public class OnEventClass
+        {
+            public UnityEvent m_onDown = new UnityEvent();
+            public UnityEvent m_onUp = new UnityEvent();
+            public UnityEvent m_onEnter = new UnityEvent();
+            public UnityEvent m_onExit = new UnityEvent();
+            public UnityEvent m_onClick = new UnityEvent();
+        }
 
         public void SetUp(object vbn = null)
         {
@@ -45,25 +56,25 @@ namespace clController
 
             entry = new EventTrigger.Entry();
             entry.eventID = EventTriggerType.PointerDown;
-            entry.callback.AddListener((data) => _vbn._onDown());
+            entry.callback.AddListener((data) => _vbn._onDown((PointerEventData)data));
             trigger.triggers.Add(entry);
 
             entry = new EventTrigger.Entry();
-            entry.callback.AddListener((data) => _vbn._onUp());
+            entry.callback.AddListener((data) => _vbn._onUp((PointerEventData)data));
             entry.eventID = EventTriggerType.PointerUp;
             trigger.triggers.Add(entry);
 
             entry = new EventTrigger.Entry();
-            entry.callback.AddListener((data) => _vbn._onEnter());
+            entry.callback.AddListener((data) => _vbn._onEnter((PointerEventData)data));
             entry.eventID = EventTriggerType.PointerEnter;
             trigger.triggers.Add(entry);
 
             entry = new EventTrigger.Entry();
-            entry.callback.AddListener((data) => _vbn._onExit());
+            entry.callback.AddListener((data) => _vbn._onExit((PointerEventData)data));
             entry.eventID = EventTriggerType.PointerExit;
 
             entry = new EventTrigger.Entry();
-            entry.callback.AddListener((data) => _vbn._onClick());
+            entry.callback.AddListener((data) => _vbn._onClick((PointerEventData)data));
             entry.eventID = EventTriggerType.PointerClick;
             trigger.triggers.Add(entry);
         }
@@ -78,27 +89,36 @@ namespace clController
             base.Start();
             SetUp(vbn);
         }
-        [SerializeField]
-        private UnityEvent m_onDown = new UnityEvent();
-        public void OnDown() { }
-        private void _onDown()
+        public static int GetFingerFromData(Vector2 position)
         {
+            if (Input.touchSupported)
+            {
+                for (int i = 0; i < Input.touchCount; i++)
+                {
+                    Touch t = Input.touches[i];
+                    if (position == t.position) return t.fingerId;
+                }
+            }
+            return -1;
+        }
+        public void OnDown() { }
+        private void _onDown(PointerEventData data)
+        {
+            m_controller.SetFingerLock(GetFingerFromData(data.position));
             PressFlag ^= true;
-            swipeLock = true;
             switch (SwitchMode)
             {
                 case ButtonSwitch.Click:
                     clickFlag = true;
                     break;
             }
+            m_onEvent.m_onDown.Invoke();
             OnDown();
         }
-        [SerializeField]
-        private UnityEvent m_onUp = new UnityEvent();
         public void OnUp() { }
-        private void _onUp()
+        private void _onUp(PointerEventData data)
         {
-            swipeLock = false;
+            m_controller.SetFingerUnLock(GetFingerFromData(data.position));
             switch (SwitchMode)
             {
                 case ButtonSwitch.Toggle:
@@ -108,12 +128,11 @@ namespace clController
                     clickFlag = false;
                     break;
             }
+            m_onEvent.m_onUp.Invoke();
             OnUp();
         }
-        [SerializeField]
-        private UnityEvent m_onEnter = new UnityEvent();
         public void OnEnter() { }
-        private void _onEnter()
+        private void _onEnter(PointerEventData data)
         {
             switch (SwitchMode)
             {
@@ -121,12 +140,11 @@ namespace clController
                     if (clickFlag) PressFlag = true;
                     break;
             }
+            m_onEvent.m_onEnter.Invoke();
             OnEnter();
         }
-        [SerializeField]
-        private UnityEvent m_onExit = new UnityEvent();
         public void OnExit() { }
-        private void _onExit()
+        private void _onExit(PointerEventData data)
         {
             switch (SwitchMode)
             {
@@ -134,12 +152,11 @@ namespace clController
                     if (clickFlag) PressFlag = false;
                     break;
             }
+            m_onEvent.m_onExit.Invoke();
             OnExit();
         }
-        [SerializeField]
-        private UnityEvent m_onClick = new UnityEvent();
         public void OnClick() { }
-        private void _onClick()
+        private void _onClick(PointerEventData data)
         {
             switch (SwitchMode)
             {
@@ -148,6 +165,7 @@ namespace clController
                     PressFlag = false;
                     break;
             }
+            m_onEvent.m_onClick.Invoke();
             OnClick();
         }
         public void UpdateDisplay()
@@ -175,14 +193,7 @@ namespace clController
             base.Update();
             if (PressFlag)
             {
-                if (clickFlag)
-                    m_controller.SetVirtualButton(ButtonType.NONE);
-                else
-                    m_controller.SetVirtualButton(PressButton, swipeLock);
-            }
-            else if (swipeLock)
-            {
-                m_controller.SetVirtualButton(ButtonType.NONE);
+                if (!clickFlag) m_controller.SetVirtualButton(PressButton);
             }
         }
     }

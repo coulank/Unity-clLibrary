@@ -878,17 +878,14 @@ namespace clController
         public List<int> TouchesFocusID { get; private set; } = new List<int>(3);
         /// <summary>スワイプ判定</summary>
         public bool[] TouchesSwipeMode { get; private set; } = new bool[USE_TOUCHESCOUNT];
-        /// <summary>タップしたときに別のイベントと被さないように様子見する</summary>
-        public bool[] TouchesLook { get; private set; } = new bool[USE_TOUCHESCOUNT];
         /// <summary>スクリーンをタップしていた時間</summary>
         public float[] TouchesTime { get; private set; } = new float[USE_TOUCHESCOUNT];
+        public Dictionary<int, bool> FingerLock { get; private set; } = new Dictionary<int, bool>();
 
         /// <summary>前回のスクロール量、Scrollで差分になる調整に使う</summary>
         public float BeforeScroll { get; private set; } = 0f;
         /// <summary>スクロール量、ズームとかに使う</summary>
         public float Scroll { get; private set; } = 0f;
-        /// <summary>これが解除されるのはタッチから離れたときのみ</summary>
-        public bool ScreenTapLock { get; private set; } = false;
 
         [Serializable]
         public struct InputInspector
@@ -1056,11 +1053,19 @@ namespace clController
             Button[ButtonMode.DelayUp] = KeySwap(Button[ButtonMode.Up], num1, num2, oneway);
         }
 
+        public void SetFingerLock(int fingerID)
+        {
+            if (!FingerLock.ContainsKey(fingerID)) FingerLock.Add(fingerID, true);
+        }
+        public void SetFingerUnLock(int fingerID)
+        {
+            FingerLock.Remove(fingerID);
+        }
+
         /// <summary>仮想ボタン発火、PointerDownを使うのがおすすめ</summary>
-        public void SetVirtualButton(ButtonType btn = ButtonType.NONE, bool touchlock = true)
+        public void SetVirtualButton(ButtonType btn = ButtonType.NONE)
         {
             VirtualButton |= btn;
-            ScreenTapLock |= touchlock;
         }
 
         public void ControllerUpdate()
@@ -1091,31 +1096,30 @@ namespace clController
             // タッチ周りのリニューアル
             if (Input.touchSupported && (Input.touchCount > 0))
             {
-                Touch touch = Input.touches[0];
-                int currentCount = 0;
+                int count = 0;
                 for (int i = 0; i < Input.touchCount; i++)
                 {
-                    if (i >= USE_TOUCHESCOUNT) break;
+                    if (count >= USE_TOUCHESCOUNT) break;
                     Touch t = Input.touches[i];
-                    TouchesPosition[i] = t.position;
-                    switch(t.phase)
+                    if (!FingerLock.ContainsKey(t.fingerId))
                     {
-                        case TouchPhase.Began:
-                            TouchesDown[i] = true;
-                            TouchesPress[i] = true;
-                            break;
-                        case TouchPhase.Moved:
-                        case TouchPhase.Stationary:
-                            TouchesPress[i] = true;
-                            break;
-                        case TouchPhase.Canceled:
-                        case TouchPhase.Ended:
-                            TouchesUp[i] = true;
-                            break;
-                    }
-                    if ((t.phase != TouchPhase.Ended) && (t.phase != TouchPhase.Canceled))
-                    {
-                        currentCount++;
+                        TouchesPosition[count] = t.position;
+                        switch(t.phase)
+                        {
+                            case TouchPhase.Began:
+                                TouchesDown[count] = true;
+                                TouchesPress[count] = true;
+                                break;
+                            case TouchPhase.Moved:
+                            case TouchPhase.Stationary:
+                                TouchesPress[count] = true;
+                                break;
+                            case TouchPhase.Canceled:
+                            case TouchPhase.Ended:
+                                TouchesUp[count] = true;
+                                break;
+                        }
+                        count++;
                     }
                 }
                 if (TouchesPress[1] && !TouchesSwipeMode[0])
@@ -1126,17 +1130,19 @@ namespace clController
             }
             else
             {
-                for(int i = 0; i < USE_TOUCHESCOUNT; i++)
+                if (!FingerLock.ContainsKey(-1))
                 {
-                    TouchesPosition[i] = Input.mousePosition;
-                    TouchesPress[i] = Input.GetMouseButton(i);
-                    TouchesDown[i] = Input.GetMouseButtonDown(i);
-                    TouchesUp[i] = Input.GetMouseButtonUp(i);
-                    TouchedDown |= TouchesDown[i];
+                    for (int i = 0; i < USE_TOUCHESCOUNT; i++)
+                    {
+                        TouchesPosition[i] = Input.mousePosition;
+                        TouchesPress[i] = Input.GetMouseButton(i);
+                        TouchesDown[i] = Input.GetMouseButtonDown(i);
+                        TouchesUp[i] = Input.GetMouseButtonUp(i);
+                        TouchedDown |= TouchesDown[i];
+                    }
+                    BeforeScroll = 0f;
+                    Scroll = Input.GetAxis("Mouse ScrollWheel");
                 }
-
-                BeforeScroll = 0f;
-                Scroll = Input.GetAxis("Mouse ScrollWheel");
             }
             for (int i = 0; i < USE_TOUCHESCOUNT; i++)
             {
@@ -1160,44 +1166,37 @@ namespace clController
                     {
                         TouchesTime[i] += Time.deltaTime;
                         if (m_property.TouchButtonFlag && m_property.TouchButtonPushFlag)
-                            if (TouchesLook[i]) VirtualButton |= m_property.TouchesButton[i];
-                        if (!ScreenTapLock) TouchesLook[i] = true;
+                            VirtualButton |= m_property.TouchesButton[i];
                         TouchesVector[i] = TouchesPosition[i] - TouchesDownPosition[i];
                         TouchesDeltaVector[i] = TouchesPosition[i] - TouchesBeforePosition[i];
 
 
-                        if (!ScreenTapLock)
-                        {
-                            mag = TouchesVector[i].magnitude;
-                            if (!TouchesSwipeMode[i])
-                                if (mag > m_property.SwipeDead)
-                                    TouchesSwipeMode[i] = true;
-                            Vector2 vector2 = TouchesVector[i];
-                            float delta_mag = 1f;
+                        mag = TouchesVector[i].magnitude;
+                        if (!TouchesSwipeMode[i])
+                            if (mag > m_property.SwipeDead)
+                                TouchesSwipeMode[i] = true;
+                        Vector2 vector2 = TouchesVector[i];
+                        float delta_mag = 1f;
 
-                            switch (controllVector)
-                            {
-                                case PosType.Rot:
-                                    vector2 = TouchesDeltaVector[i] * m_property.TouchRotReverseComp;
-                                    delta_mag = m_property.TouchDeltaMagnitude;
-                                    break;
-                            }
-                            if (controllVector != PosType.None)
-                                if (TouchesSwipeMode[i])
-                                {
-                                    Stick.SetMost(controllVector, 
-                                        VecComp.ConvMag(vector2, m_property.SwipeMaxRadius), delta_mag);
-                                }
+                        switch (controllVector)
+                        {
+                            case PosType.Rot:
+                                vector2 = TouchesDeltaVector[i] * m_property.TouchRotReverseComp;
+                                delta_mag = m_property.TouchDeltaMagnitude;
+                                break;
                         }
+                        if (controllVector != PosType.None)
+                            if (TouchesSwipeMode[i])
+                            {
+                                Stick.SetMost(controllVector, 
+                                    VecComp.ConvMag(vector2, m_property.SwipeMaxRadius), delta_mag);
+                            }
                     }
                     if (TouchesUp[i])
                     {
-                        if (!ScreenTapLock)
-                        {
-                            if (m_property.TouchButtonFlag) {
-                                if (TouchesLook[i] && !TouchesSwipeMode[i] && !m_property.TouchButtonPushFlag)
-                                    VirtualButton |= m_property.TouchesButton[i];
-                            }
+                        if (m_property.TouchButtonFlag) {
+                            if (!TouchesSwipeMode[i] && !m_property.TouchButtonPushFlag)
+                                VirtualButton |= m_property.TouchesButton[i];
                         }
                         TouchesUpPosition[i] = TouchesPosition[i];
                         TouchesBeforeVector[i] = TouchesUpPosition[i] - TouchesDownPosition[i];
@@ -1206,10 +1205,6 @@ namespace clController
                         TouchesTime[i] = 0f;
                     }
                 }
-            }
-            if (!TouchedPress)
-            {
-                ScreenTapLock = false;
             }
 
             // ボタン周り取得する
