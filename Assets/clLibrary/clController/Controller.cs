@@ -9,7 +9,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEngine;
-using UnityEditor;
+using UnityEngine.Events;
 
 namespace clController
 {
@@ -249,6 +249,14 @@ namespace clController
             PosAdd(PosType.Move);
             PosAdd(PosType.Rot);
         }
+    }
+
+    [Serializable]
+    public class ControllerEvent
+    {
+        public ButtonType m_buttonName = ButtonType.NONE;
+        public ButtonMode m_buttonMode = ButtonMode.Press;
+        public UnityEvent m_onEvent = new UnityEvent();
     }
 
     public class ConTemplate
@@ -511,7 +519,6 @@ namespace clController
                 Add(touchPhase, PhaseCount(touches, touchPhase));
             }
         }
-
     }
 
     /// <summary>コントローラー設定のテンプレートクラス</summary>
@@ -723,39 +730,7 @@ namespace clController
     public class Controller : MonoBehaviour
     {
         public List<ConObj> m_controller = new List<ConObj>();
-        public static ConType DefaultConType = ConType.Default;
-        // 現在のコントローラ
-        [SerializeField] ConType currentConType = DefaultConType;
-        // コントローラの切り替えは再生成にする、複数体作るときのメモリ軽減
-        public ConType CurrentConType
-        {
-            get { return currentConType; }
-            set
-            {
-                bool doChange;
-                int joystickID = 0;
-                joystickID = JoystickID;
-                doChange = ConType != currentConType;
-                if (doChange) {
-                    currentConType = value;
-                    ConType = currentConType;
-                }
-            }
-        }
-        // コントローラの数が変わったときに実行
-        private int activeJoystickCount = 0;
-        public int ActiveJoystickCount
-        {
-            get { return activeJoystickCount; }
-            private set
-            {
-                if (activeJoystickCount != value)
-                {
-                    if (CurrentConType == ConType.Default) BuildOfType(CurrentConType);
-                    activeJoystickCount = value;
-                }
-            }
-        }
+        public List<ControllerEvent> m_globalControllerEvents = new List<ControllerEvent>();
 
         static protected List<ButtonType> GetListButtonType()
         {
@@ -808,40 +783,7 @@ namespace clController
         /// <summary>定数配列、登録してるボタンは以下の通り、Switchのコントローラーが基準になります</summary>
         static public List<ButtonType> BTNNUMLIST = GetListButtonType();
         static public Dictionary<ButtonType, string> BTNSTRDIC = GetDicButtonType();
-        static public Dictionary<ConType, string> ConAutoReg = new Dictionary<ConType, string> {
-        { ConType.Android, @".*::.*Android.*" },
-        { ConType.Switch, @".*Wireless Gamepad.*::.*" },
-    };
-        public ConType Sys_ConType { get; private set; }
-        /// <summary>コントローラーの種類</summary>
-        private ConType m_conType;
-        public ConType ConType
-        {
-            set { BuildOfType(value); }
-            get { return m_conType; }
-        }
-        /// <summary>現在のコントローラ名やコントローラID</summary>
-        public string JoystickName = "All";
-        private int joystickID = 0;
-        public int JoystickID
-        {
-            set
-            {
-                JoystickName = "All";
-                string[] jsns = Input.GetJoystickNames();
-                if ((value < ConObj.joysticks.Count) && (value <= jsns.Length))
-                {
-                    joystickID = value;
-                    if (joystickID == 0)
-                        JoystickName = "All";
-                    else if (joystickID < 0)
-                        JoystickName = "Keyboard";
-                    else
-                        JoystickName = jsns[joystickID - 1];
-                }
-            }
-            get { return joystickID; }
-        }
+
         /// <summary>コントローラーが現在アクティブなのかどうか、これがFalseならUpdateは初期化だけになる</summary>
         [NonSerialized] public bool Active = true;
         /// <summary>スティックのYの正負を入れ替えるかどうか、デフォで入れ替える</summary>
@@ -974,7 +916,7 @@ namespace clController
         /// </summary>
         public ButtonObj Button { get { return m_button; } set { m_button = value; } }
         protected ButtonObj m_button = new ButtonObj();
-        public ButtonType VirtualButton = 0;
+        [NonSerialized] public ButtonType VirtualButton = 0;
         /// <summary>スティックオブジェクト</summary>
         public StickObj Stick { get { return m_stick; } set { m_stick = value; } }
         public StickObj m_stick = new StickObj();
@@ -983,6 +925,75 @@ namespace clController
 
         private int controllerCount;
         public string[] ControllerNames;
+
+        public static ConType DefaultConType = ConType.Default;
+        // 現在のコントローラ
+        [SerializeField] ConType currentConType = DefaultConType;
+        // コントローラの切り替えは再生成にする、複数体作るときのメモリ軽減
+        public ConType CurrentConType
+        {
+            get { return currentConType; }
+            set
+            {
+                bool doChange;
+                int joystickID = 0;
+                joystickID = JoystickID;
+                doChange = ConType != currentConType;
+                if (doChange)
+                {
+                    currentConType = value;
+                    ConType = currentConType;
+                }
+            }
+        }
+        // コントローラの数が変わったときに実行
+        private int activeJoystickCount = 0;
+        public int ActiveJoystickCount
+        {
+            get { return activeJoystickCount; }
+            private set
+            {
+                if (activeJoystickCount != value)
+                {
+                    if (CurrentConType == ConType.Default) BuildOfType(CurrentConType);
+                    activeJoystickCount = value;
+                }
+            }
+        }
+        static public Dictionary<ConType, string> ConAutoReg = new Dictionary<ConType, string> {
+            { ConType.Android, @".*::.*Android.*" },
+            { ConType.Switch, @".*Wireless Gamepad.*::.*" },
+        };
+        public ConType Sys_ConType { get; private set; }
+        /// <summary>コントローラーの種類</summary>
+        private ConType m_conType;
+        public ConType ConType
+        {
+            set { BuildOfType(value); }
+            get { return m_conType; }
+        }
+        /// <summary>現在のコントローラ名やコントローラID</summary>
+        public string JoystickName = "All";
+        private int joystickID = 0;
+        public int JoystickID
+        {
+            set
+            {
+                JoystickName = "All";
+                string[] jsns = Input.GetJoystickNames();
+                if ((value < ConObj.joysticks.Count) && (value <= jsns.Length))
+                {
+                    joystickID = value;
+                    if (joystickID == 0)
+                        JoystickName = "All";
+                    else if (joystickID < 0)
+                        JoystickName = "Keyboard";
+                    else
+                        JoystickName = jsns[joystickID - 1];
+                }
+            }
+            get { return joystickID; }
+        }
 
         public void Add(KeyType _keytype = KeyType.Key, ButtonType _button = 0, int _num = 1, string _keyname = "", bool _reverse = false, float _dead = 0.1f,
             PosType _pos = PosType.Left, PointType _pnt = PointType.X)
@@ -1313,6 +1324,12 @@ namespace clController
             }
             Stick[PosType.Rot] *= m_property.RotReverseComp;
             VirtualButton = 0;
+
+            for (int i = 0; i < m_globalControllerEvents.Count; i++)
+            {
+                ControllerEvent e = m_globalControllerEvents[i];
+                if (m_button.JudgeButton(e.m_buttonName, e.m_buttonMode)) e.m_onEvent.Invoke();
+            }
         }
 
         // デフォルトで生成されるキーコンフィグデータ
@@ -1368,21 +1385,23 @@ namespace clController
         Application.Quit();
 #endif
         }
+        const string CONTROLLER_NAME = "MainController";
+        const string CONTROLLER_TAG = "GameController";
         static public GameObject GetGameMain(GameObject gameMain = null)
         {
             // 操作親を設定する、デフォルトでgameMainを取得、なければ自分で作る
             if (gameMain == null)
             {
-                gameMain = GameObject.FindGameObjectWithTag("GameController");
+                gameMain = GameObject.FindGameObjectWithTag(CONTROLLER_TAG);
                 if (gameMain == null)
                 {
-                    gameMain = new GameObject("MainController");
+                    gameMain = new GameObject(CONTROLLER_NAME);
+                    gameMain.tag = CONTROLLER_TAG;
                 }
                 var _controller = gameMain.GetComponent<Controller>();
                 if (_controller == null)
                 {
                     gameMain.AddComponent<Controller>();
-
                 }
             }
             return gameMain;
@@ -1420,3 +1439,4 @@ namespace clController
         }
     }
 }
+

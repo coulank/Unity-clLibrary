@@ -54,6 +54,7 @@ namespace clController
             if (trigger == null) trigger = gameObject.AddComponent<EventTrigger>();
             EventTrigger.Entry entry;
 
+            // Canvasから生成されるEventSystemで取得
             entry = new EventTrigger.Entry();
             entry.eventID = EventTriggerType.PointerDown;
             entry.callback.AddListener((data) => _vbn._onDown((PointerEventData)data));

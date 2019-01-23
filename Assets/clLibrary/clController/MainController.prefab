@@ -44,7 +44,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 27ad2ceee7c3d3147af6a67a086e31b4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_gameFollow: {fileID: 0}
+  m_controllerEvents: []
   followObject: {fileID: 0}
   RelativeOffset: {x: 0, y: 0, z: 0}
   DefaultAngle: 20
@@ -71,8 +71,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6c6b0f89b4c6c8a48a33e2ba9a628110, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentConType: 0
-  JoystickName: All
+  m_globalControllerEvents: []
   m_inputInspector:
     PressButtonInt: 0
     PressButton: 
@@ -92,7 +91,7 @@ MonoBehaviour:
     TouchDeltaMagnitude: 5
     TouchRotReverseComp: {x: 1, y: 1}
     RotReverseComp: {x: 1, y: -1}
-    TouchVectorMode: 100000002000000004000000
+    TouchVectorMode: 100000002000000000000000
     TouchesButton: 100000000000000000000000
     TouchButtonFlag: 1
     TouchButtonPushFlag: 1
@@ -103,5 +102,6 @@ MonoBehaviour:
     SwipeToMove: 1
     SwipeDead: 20
     SwipeMaxRadius: 40
-  VirtualButton: 0
   ControllerNames: []
+  currentConType: 0
+  JoystickName: All
