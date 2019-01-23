@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Cinemachine;
+using System;
 
 namespace clController
 {
     [DefaultExecutionOrder(0xFFFF)]
-    public class FollowController : Master
+    public class FollowController : ControllerMaster
     {
         /// <summary>追従するオブジェクト</summary>
         [SerializeField]

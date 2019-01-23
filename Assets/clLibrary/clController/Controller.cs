@@ -15,14 +15,19 @@ namespace clController
 {
     public enum ButtonMode
     {
-        Press = 0,
-        Repeat = 1,
-        Down = 2,
-        Up = 3,
-        Delay = 4,
-        DelayRepeat = 5,
-        DelayDown = 6,
-        DelayUp = 7
+        Press = 1,
+        Repeat = 2,
+        Down = 4,
+        Up = 8,
+        Delay = 16,
+        DelayRepeat = Delay | Repeat,
+        DelayDown = Delay | Down,
+        DelayUp = Delay | Up,
+        Double = 32,
+        Click = 64,
+        DoubleClick = Double | Down,
+        DoubleUp = Double | Up,
+        None = 0
     }
     /// <summary>Set ConType</summary>
     public enum ConType
@@ -77,15 +82,9 @@ namespace clController
         ZR = 0x800,
         PLUS = 0x1000,
         MINUS = 0x2000,
+        STARTMENU = 0x3000,
         PUSHSL = 0x4000,
         PUSHSR = 0x8000,
-        KEY1 = 0x10,
-        KEY2 = 0x20,
-        KEY3 = 0x40,
-        KEY4 = 0x80,
-        START = 0x1000,
-        SELECT = 0x2000,
-        STARTMENU = 0x3000,
         PUSHSTICK = 0xC000,
         R_UP = 0x10000,
         R_DOWN = 0x20000,
@@ -180,6 +179,12 @@ namespace clController
         public ButtonType DelayDown { get { return this[ButtonMode.Down]; } }
         /// <summary>長押し + 離した瞬間だけ発生</summary>
         public ButtonType DelayUp { get { return this[ButtonMode.Up]; } }
+        /// <summary>ダブルクリック + 押し続けているときに発生</summary>
+        public ButtonType Double { get { return this[ButtonMode.Double]; } }
+        /// <summary>ダブルクリック + 押した瞬間に発生</summary>
+        public ButtonType DoubleClick { get { return this[ButtonMode.DoubleClick]; } }
+        /// <summary>ダブルクリック + 離した瞬間に発生</summary>
+        public ButtonType DoubleDown { get { return this[ButtonMode.DoubleUp]; } }
 
         /// <summary>押されたボタンの一覧を文字列で出力する</summary>
         static public string ResultButton(ButtonType btn)
@@ -415,14 +420,21 @@ namespace clController
         public float lock_start;
         public float start;
         public float interval;
-        public KeyRepeatClass(float _lock_start = 0f, float _start = 0.4f, float _interval = 0.2f)
+        public bool double_enable = false;
+        public bool double_press = false;
+        public float double_time;
+        public float double_latency;
+        public KeyRepeatClass(float _lock_start = 0f, float _start = 0.4f, 
+            float _interval = 0.2f, float _double_latency = 1f)
         {
-            lock_start = _lock_start; start = _start; interval = _interval;
+            lock_start = _lock_start; start = _start; interval = _interval; double_latency = _double_latency;
+            double_time = double_latency + 1;
         }
         public bool Check(bool press)
         {
             bool RetBool = false;
             first = false; last = false;
+            if (double_time < double_latency) double_time += Time.deltaTime;
             if (press)
             {
                 if (enable)
@@ -432,7 +444,7 @@ namespace clController
                     {
                         if ((interval > 0f) && (pushing > interval))
                         {
-                            RetBool = true;
+                            RetBool = true; // ButtonMode.Repeat
                             pushing = 0f;
                         }
                     }
@@ -445,14 +457,12 @@ namespace clController
                             pushing = 0f;
                         }
                     }
-
                 }
                 else
                 {
                     if (lock_enable)
                     {
                         pushing += Time.deltaTime;
-
                     }
                     else
                     {
@@ -461,10 +471,15 @@ namespace clController
                     }
                     if (pushing >= lock_start)
                     {
-                        first = true;
+                        first = true;       // ButtonMode.Down
                         RetBool = true;
                         enable = true;
                         started = false;
+                        double_press = (double_time <= double_latency);
+                        if (double_press)
+                            double_time = double_latency + 1f;
+                        else
+                            double_time = 0f;
                     }
                 }
 
@@ -473,10 +488,17 @@ namespace clController
             {
                 if (enable)
                 {
-                    last = true;
+                    if (double_time <= double_latency)
+                        double_time = 0f;
+                    else
+                        double_time = double_latency + 1f;
+                    last = true;    // ButtonMode.Up
                     started = false;
                     enable = false;
                     lock_enable = false;
+                } else
+                {
+                    double_press = false;
                 }
             }
             return RetBool;
@@ -872,17 +894,21 @@ namespace clController
             public bool RotReverseX { get { return RotReverseComp.x < 0; } set { RotReverseComp.x = value ? -1 : 1; } }
             public bool RotReverseY { get { return RotReverseComp.y < 0; } set { RotReverseComp.y = value ? -1 : 1; } }
 
-            /// <summary>指に対しての動かす対象</summary>
-            public PosType[] TouchVectorMode = new PosType[USE_TOUCHESCOUNT] 
-            { PosType.Move, PosType.Rot, PosType.Center};
-            /// <summary>タップしたときのボタンアクション</summary>
-            public ButtonType[] TouchesButton = new ButtonType[USE_TOUCHESCOUNT]
-                { ButtonType.A, ButtonType.NONE, ButtonType.NONE };
-
             /// <summary>スクリーン全体をタップしたときのボタン発生を有効にするか</summary>
             public bool TouchButtonFlag = true;
-            /// <summary>タップし続けてるときにボタンを発生させ続けるか</summary>
-            public bool TouchButtonPushFlag = true;
+            /// <summary>タップしたときのボタンアクション</summary>
+            public ButtonType[] TouchesButtonName = new ButtonType[USE_TOUCHESCOUNT]
+                { ButtonType.A, ButtonType.NONE, ButtonType.NONE };
+            /// <summary>
+            /// タップしたときのボタンの挙動、Noneは動作無し
+            /// スワイプモードになったとき、Clickは無効になる仕様です（一般的なタップになる）
+            /// </summary>
+            public ButtonMode[] TouchesButtonMode = new ButtonMode[USE_TOUCHESCOUNT]
+                { ButtonMode.Click, ButtonMode.Press, ButtonMode.Press };
+            /// <summary>指に対しての動かす対象</summary>
+            public PosType[] TouchVectorMode = new PosType[USE_TOUCHESCOUNT]
+            { PosType.Move, PosType.Rot, PosType.Center};
+
             /// <summary>矢印キーを移動ベクトルにするか</summary>
             public bool ArrowToMove = true;
             /// <summary>矢印キーの移動ベクトルにおける倍率</summary>
@@ -1083,14 +1109,7 @@ namespace clController
         {
             // 初期化
             foreach (ButtonType btnkey in BTNNUMLIST) btnlist[btnkey] = false;
-            Button[ButtonMode.Press] = 0;
-            Button[ButtonMode.Repeat] = 0;
-            Button[ButtonMode.Down] = 0;
-            Button[ButtonMode.Up] = 0;
-            Button[ButtonMode.Delay] = 0;
-            Button[ButtonMode.DelayRepeat] = 0;
-            Button[ButtonMode.DelayDown] = 0;
-            Button[ButtonMode.DelayUp] = 0;
+            foreach (ButtonMode Type in Enum.GetValues(typeof(ButtonMode))) Button[Type] = 0;
             Stick.PosClear();
             TouchesPress = Array.ConvertAll(TouchesPress,x => false);
             TouchesDown = Array.ConvertAll(TouchesDown, x => false);
@@ -1127,6 +1146,7 @@ namespace clController
                                 break;
                             case TouchPhase.Canceled:
                             case TouchPhase.Ended:
+                                TouchesPress[count] = true;
                                 TouchesUp[count] = true;
                                 break;
                         }
@@ -1169,15 +1189,31 @@ namespace clController
                     controllVector = m_property.TouchVectorMode[i];
                     if (TouchesDown[i])
                     {
+                        TouchesTime[i] = 0;
                         TouchesSwipeMode[i] = false;
                         TouchesDownPosition[i] = TouchesPosition[i];
+                        if (m_property.TouchButtonFlag)
+                        {
+                            if ((m_property.TouchesButtonMode[i]
+                                & (ButtonMode.Down)) > 0)
+                            {
+                                VirtualButton |= m_property.TouchesButtonName[i];
+                            }
+                        }
                     }
 
                     if (TouchesPress[i])
                     {
                         TouchesTime[i] += Time.deltaTime;
-                        if (m_property.TouchButtonFlag && m_property.TouchButtonPushFlag)
-                            VirtualButton |= m_property.TouchesButton[i];
+                        if (m_property.TouchButtonFlag)
+                        {
+                            if ((m_property.TouchesButtonMode[i]
+                                & (ButtonMode.Press | ButtonMode.Repeat | ButtonMode.Double)) > 0)
+                            {
+                                VirtualButton |= m_property.TouchesButtonName[i];
+                            }
+                        }
+                            
                         TouchesVector[i] = TouchesPosition[i] - TouchesDownPosition[i];
                         TouchesDeltaVector[i] = TouchesPosition[i] - TouchesBeforePosition[i];
 
@@ -1205,9 +1241,16 @@ namespace clController
                     }
                     if (TouchesUp[i])
                     {
-                        if (m_property.TouchButtonFlag) {
-                            if (!TouchesSwipeMode[i] && !m_property.TouchButtonPushFlag)
-                                VirtualButton |= m_property.TouchesButton[i];
+                        if (m_property.TouchButtonFlag)
+                        {
+                            if ((m_property.TouchesButtonMode[i] & (ButtonMode.Up)) > 0)
+                            {
+                                VirtualButton |= m_property.TouchesButtonName[i];
+                            }
+                            else if ((m_property.TouchesButtonMode[i] & (ButtonMode.Click)) > 0)
+                            {
+                                if (!TouchesSwipeMode[i]) VirtualButton |= m_property.TouchesButtonName[i];
+                            }
                         }
                         TouchesUpPosition[i] = TouchesPosition[i];
                         TouchesBeforeVector[i] = TouchesUpPosition[i] - TouchesDownPosition[i];
@@ -1281,11 +1324,12 @@ namespace clController
             foreach (ButtonType btnkey in BTNNUMLIST)
             {
                 bool press = btnlist[btnkey];
+                KeyRepeatClass rep = Repeat[btnkey];
                 if (press)
                 {
                     Button[ButtonMode.Press] |= btnkey;
+                    if (rep.double_press) Button[ButtonMode.Double] |= btnkey;
                 }
-                KeyRepeatClass rep = Repeat[btnkey];
                 if (rep.Check(press))
                 {
                     Button[ButtonMode.Repeat] |= btnkey;
@@ -1293,10 +1337,13 @@ namespace clController
                 if (rep.first)
                 {
                     Button[ButtonMode.Down] |= btnkey;
+                    if (rep.double_press) Button[ButtonMode.DoubleClick] |= btnkey;
                 }
                 if (rep.last)
                 {
                     Button[ButtonMode.Up] |= btnkey;
+                    Button[ButtonMode.Click] |= btnkey;
+                    if (rep.double_press) Button[ButtonMode.DoubleUp] |= btnkey;
                 }
                 rep = LongRepeat[btnkey];
                 if (rep.enable)

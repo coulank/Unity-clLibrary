@@ -8,7 +8,7 @@ namespace clController
     /// 後になってCinemachineの存在を知ったため、今後はFollowControllerを使います
     /// </summary>
     [DefaultExecutionOrder(0xFFFF)]
-    public class FollowCamera : Master
+    public class FollowCamera : ControllerMaster
     {
         /// <summary>
         /// コントローラの使用許可、TrueにするとYや右スティックなどが反映されます

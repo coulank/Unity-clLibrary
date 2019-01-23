@@ -7,7 +7,7 @@ using UnityEngine.EventSystems;
 
 namespace clController
 {
-    public class VirtualButton : Master
+    public class VirtualButton : ControllerMaster
     {
         public enum ButtonSwitch
         {
