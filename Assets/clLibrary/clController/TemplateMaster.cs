@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace clController
 {
-    public class TemplateMaster : Master
+    public class TemplateMaster : ControllerMaster
     {
         new void Start()
         {

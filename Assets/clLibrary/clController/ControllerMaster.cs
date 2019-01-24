@@ -15,10 +15,12 @@ namespace clController
         public ButtonObj m_button { get; private set; }
         public StickObj m_stick { get; private set; }
         // コントローラーイベントはクラス共通
-        public List<ControllerEvent> m_controllerEvents = new List<ControllerEvent>();
+        public ControllerEvents m_controllerEvents = new ControllerEvents();
 
         public void Start()
         {
+            m_controllerEvents.ParentObject = gameObject;
+
             m_gameController = Controller.GetGameMain(m_gameController);
             m_controller = m_gameController.GetComponent<Controller>();
             m_follow = m_gameController.GetComponent<FollowController>();
@@ -30,11 +32,8 @@ namespace clController
             {
                 m_button = m_controller.Button;
                 m_stick = m_controller.Stick;
-                for (int i = 0; i < m_controllerEvents.Count; i++)
-                {
-                    ControllerEvent e = m_controllerEvents[i];
-                    if (m_button.JudgeButton(e.m_buttonName, e.m_buttonMode)) e.m_onEvent.Invoke();
-                }
+                m_controllerEvents.Update(m_controller);
+
             }
         }
     }

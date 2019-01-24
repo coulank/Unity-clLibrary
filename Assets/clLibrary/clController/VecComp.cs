@@ -311,6 +311,11 @@ namespace clController
             }
             return mainQuat;
         }
-
+        public static Vector2 LimitForce(Vector3 forceVector, Vector3 currentVelocity, Vector3 maxVelocity, Vector3 biasMax) {
+            if (Mathf.Abs(currentVelocity.x) > Mathf.Abs(maxVelocity.x + biasMax.x)) forceVector.x = 0;
+            if (Mathf.Abs(currentVelocity.y) > Mathf.Abs(maxVelocity.y + biasMax.y)) forceVector.y = 0;
+            if (Mathf.Abs(currentVelocity.z) > Mathf.Abs(maxVelocity.z + biasMax.z)) forceVector.z = 0;
+            return forceVector;
+        }
     }
 }

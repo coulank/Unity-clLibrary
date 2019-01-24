@@ -40,8 +40,7 @@ namespace clController
         public bool DefaultResetRotY = true;
         [System.NonSerialized]
         public ButtonMode resetRotButtonMode = ButtonMode.Down;
-        [SerializeField]
-        protected bool rotMoving = false;
+        [NonSerialized] protected bool rotMoving = false;
         public Vector3 BaseAxis = Vector3.up;
         /// 最大の移動角度、最小共に0で制限なし
         /// </summary>

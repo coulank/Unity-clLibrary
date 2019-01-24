@@ -256,14 +256,6 @@ namespace clController
         }
     }
 
-    [Serializable]
-    public class ControllerEvent
-    {
-        public ButtonType m_buttonName = ButtonType.NONE;
-        public ButtonMode m_buttonMode = ButtonMode.Press;
-        public UnityEvent m_onEvent = new UnityEvent();
-    }
-
     public class ConTemplate
     {
         public KeyType keytype;
@@ -752,7 +744,7 @@ namespace clController
     public class Controller : MonoBehaviour
     {
         public List<ConObj> m_controller = new List<ConObj>();
-        public List<ControllerEvent> m_globalControllerEvents = new List<ControllerEvent>();
+        public ControllerEvents m_globalControllerEvents = new ControllerEvents();
 
         static protected List<ButtonType> GetListButtonType()
         {
@@ -1166,9 +1158,9 @@ namespace clController
                     for (int i = 0; i < USE_TOUCHESCOUNT; i++)
                     {
                         TouchesPosition[i] = Input.mousePosition;
-                        TouchesPress[i] = Input.GetMouseButton(i);
                         TouchesDown[i] = Input.GetMouseButtonDown(i);
                         TouchesUp[i] = Input.GetMouseButtonUp(i);
+                        TouchesPress[i] = Input.GetMouseButton(i) || TouchesUp[i];
                         TouchedDown |= TouchesDown[i];
                     }
                     BeforeScroll = 0f;
@@ -1371,12 +1363,7 @@ namespace clController
             }
             Stick[PosType.Rot] *= m_property.RotReverseComp;
             VirtualButton = 0;
-
-            for (int i = 0; i < m_globalControllerEvents.Count; i++)
-            {
-                ControllerEvent e = m_globalControllerEvents[i];
-                if (m_button.JudgeButton(e.m_buttonName, e.m_buttonMode)) e.m_onEvent.Invoke();
-            }
+            m_globalControllerEvents.Update(this);
         }
 
         // デフォルトで生成されるキーコンフィグデータ
@@ -1455,6 +1442,7 @@ namespace clController
         }
         void Start()
         {
+            m_globalControllerEvents.ParentObject = gameObject;
             Create(this, currentConType);
             activeJoystickCount = JoystickCount();
             Update();
